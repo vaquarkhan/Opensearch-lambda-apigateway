@@ -1,0 +1,102 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Open search project"
+Globals:
+  Api:
+    OpenApiVersion: '3.0.1'
+    CacheClusterEnabled: true
+    CacheClusterSize: '0.5'
+    MethodSettings:
+      - ResourcePath: /openSearch
+        HttpMethod: "GET"
+        CachingEnabled: true # required to enable caching
+        CacheTtlInSeconds: 15 # optional
+Resources:
+  ApiGatewayTest:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: AWS API Gateway to trigger the lmabda function
+      StageName: dev
+      Auth:
+        Authorizers:
+          BasicAuthorizer:
+            FunctionPayloadType: TOKEN
+            FunctionArn: !ImportValue BasicAuthorizerFunction-Arn
+            Identity:
+              Header: Authorization
+              ValidationExpression: ^[Bb]earer [-0-9a-zA-z\.]*$
+              ReauthorizeEvery: 0
+        DefaultAuthorizer: BasicAuthorizer
+      Cors: "'*'"
+      DefinitionBody:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://123-test/swagger.yaml
+      
+  OpenSearchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler #provide handller name i.e
+      Runtime: python3.9
+      Timeout: 20
+      Role: arn:aws:iam::*:role/lambda-role #IAM role for the Lambda execution
+      MemorySize: 128
+      Layers:
+      - arn:aws:lambda:us-west-1:*:layer:named-dependencies:1 #provoide the name of the lambda layer
+      VpcConfig:
+        SecurityGroupIds:
+        - sg-01234567 #Security group within the VPC you want your function launched i.e communication ports that is linked to where the OpenSearch service was provisioned
+        SubnetIds:
+        - subnet-01234567 #Subnet (private or public depends on whether a NAT gateway is attached) within the VPC you want your function launched
+      Environment:
+        Variables:
+          opensearchOrder: sampleIndex1 #index name 1
+          opensearchRole: arn:aws:iam::*:role/openSearch-role #open search role authorized to query the open search service
+          opensearchUrl: vpc-*.us-west-1.es.amazonaws.com #Endpoint of hte Open Search service that is to be queried
+      Events:
+        HttpGet:
+          Type: Api
+          Properties:
+            Path: /openSearch
+            Method: GET
+            StageName: dev
+            RequestParameters:
+              - method.request.querystring.type:
+                  Required: true
+                  Caching: true
+            RestApiId:
+              Ref: ApiGatewayTest
+      CodeUri: s3://123-test/LambdaPackageName #Define s3 location where the lambda package is located
+Outputs:
+  ApiGatewayTest:
+    Description: "This API has been developed as a sample open search project"
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/openSearch/
+  ApiGatewayTestRestApiId:
+    Description: API Gateway ARN for Basic AWS API Gateway
+    Value:
+      Ref: ApiGatewayTest
+    Export:
+      Name: ApiGatewayTest-RestApiId
+  ApiGatewayTestRootResourceId:
+    Value:
+      Fn::GetAtt:
+        - ApiGatewayTest
+        - RootResourceId
+    Export:
+      Name: BasicAWSApiGateway-RootResourceId
+      
+  OSlambdaFunction:
+    Description: Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - openSearchFunction
+      - Arn
+  OpenSearchFunctionIamRole:
+    Description: IAM Role used for the lambda function
+    Value:
+      Fn::GetAtt:
+      - openSearchFunctionRole
+      - Arn

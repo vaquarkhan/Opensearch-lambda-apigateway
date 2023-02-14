@@ -1,0 +1,60 @@
+---
+swagger: "2.0"
+info:
+  description: "This API has been developed for the Open Search project"
+  version: "1.0.0"
+  title: "Special API Gateway"
+host: "*.execute-api.us-west-1.amazonaws.com"
+basePath: "/dev"
+schemes:
+- "https"
+paths:
+  /account:
+    get:
+      produces:
+      - "application/json"
+      parameters:
+      - name: "searchParam"
+        in: "query"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      security:
+        - NONE: []
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        passthroughBehavior: when_no_match
+        type: mock
+definitions:
+  Empty:
+    type: "object"
+    title: "Empty Schema"
+x-amazon-apigateway-policy:
+  Version: "2012-10-17"
+  Statement:
+  - Effect: "Deny"
+    Principal: "*"
+    Action: "execute-api:Invoke"
+    Resource: "arn:aws:execute-api:us-west-1:*/*"
+    Condition:
+      NotIpAddress:
+        aws:SourceIp:
+        - "13.108.0.0/14"  #random IPs
+        - "18.214.12.209/32"
+	    - "checkmyip.com"
+  - Effect: "Allow"
+    Principal: "*"
+    Action: "execute-api:Invoke"
+    Resource: "arn:aws:execute-api:us-west-1:*/*"
